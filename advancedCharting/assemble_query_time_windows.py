@@ -4,19 +4,12 @@ import arrow
 logger = get_logger(LOGGER_NAME)
 
 def assemble_query_time_windows(config, params):
-    # PARAMS
-    # Relative date
-    # Time Period
-    # Existing Timestamps (if any)
-    # Query Modified
-    # Date Format String
     relative_date = params.get('relativeDate')
     period = params.get('period')
     date_format = params.get('dateFormat', 'YYYY-MM-DDTHH:mm:ss.SSS[Z]')
     existing_times = params.get('times', [])
     query_modified = params.get('queryModified', False)
 
-    defaultStartTime = config.get('defaultStartTime')
     start_time, end_time = handleRelativeDate(relative_date, period)
 
     if existing_times and not query_modified:
@@ -28,13 +21,20 @@ def assemble_query_time_windows(config, params):
         except arrow.parser.ParserError:
             first_bucket_index = 1
             column_heading_present = True
-        while arrow.get(existing_times[first_bucket_index]) < start_time:
-            first_bucket_index += 1
+        try:
+            while arrow.get(existing_times[first_bucket_index]) < start_time:
+                first_bucket_index += 1
+        except arrow.parser.ParserError as e:
+            logger.error("Arrow library could not parse the object {}".format(existing_times[first_bucket_index]))
+            raise ConnectorError("Arrow library could not parse the object {}".format(existing_times[first_bucket_index]))
         
         # Strip out all times less than the calculated start time
         existing_times = existing_times[first_bucket_index:]
         first_record_to_keep_index = first_bucket_index if column_heading_present else first_bucket_index + 1
 
+        # We will always re-query the last time window from the existing chart
+        # because it likely represents an incomplete time window. After that, keep applying the 
+        # time period shift until a timestamp is found which is after the "end time" of the chart
         last_timebucket = existing_times[-1]
         time_buckets_to_query = [{'start': last_timebucket}]
         last_timebucket = arrow.get(last_timebucket)
@@ -46,9 +46,10 @@ def assemble_query_time_windows(config, params):
             new_bucket['end'] = new_endtime.format(date_format) if new_endtime < end_time else end_time.format(date_format)
             time_buckets_to_query.append(new_bucket)
         return {"query_buckets": time_buckets_to_query, "mode": "update_buckets", "first_index_to_keep": first_record_to_keep_index}
-
-
     else:
+        # When no existing data is present, we just take the start time and apply
+        # the time period shift until a timestamp is reached which is past the 
+        # chart's end time
         time_buckets = []
         time_slider = start_time
         while time_slider < end_time:

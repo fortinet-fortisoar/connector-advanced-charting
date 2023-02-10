@@ -17,7 +17,6 @@ def flatten_datasets(dataSets, group=False):
     for dataSet in dataSets:
         title = dataSet['title']
         if "query" in dataSet and len(dataSet["query"]) > 0:
-            #queries.append({'query': dataSet['query'], 'title': title, 'resource': dataSet['resource'], 'mappingField': dataSet['mappingField']})
             queries.append(dataSet)
             if group:
                 groups.append(title)

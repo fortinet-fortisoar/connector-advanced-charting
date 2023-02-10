@@ -9,10 +9,10 @@ def combine_query_results_into_data_columns(config, params):
     first_index = params.get('firstIndexToKeep')
     time_buckets = params.get('queriedTimeBuckets')
     query_results = params.get('queryResults')
-    #input_columns = {{vars.input.params.chart_record.queryResults.data.columns if vars.input.params.chart_record.queryResults else false}}
     input_columns = params.get('existingDataColumns')
 
-    # x-axis first
+    # First remove any "too old" elements from the timestamp column, and then
+    # add on the new time buckets which were just queried
     if input_columns and playbook_mode != "new_chart":
         x_col = ['x'] + input_columns[0][first_index:-1] + [tb['start'] for tb in time_buckets]
     else:
